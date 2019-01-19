@@ -70,7 +70,7 @@ HELP_TEXT = "ALGOS is a recipe adviser tool. It was designed to help the process
             " “copy data” from the graph window" \
             "\n         (please note that the copied data is of R between 400-1990 nm, steps 10 nm)." \
             "\n\nEnjoy!"
-ABOUT_TEXT = "ALGOS version 1.0" \
+ABOUT_TEXT = "ALGOS version 1.0.1" \
              "\nProgrammed by: Aviv Goldstein" \
              "\nModelled by: Dr. Alona Goldstein" \
              "\n© Rioglass Solar Systems Ltd." \
@@ -134,7 +134,7 @@ class GraphFrame(tk.Toplevel):
 
         toolbar = NavigationToolbar2Tk(canvas, canvas_frame)
         toolbar.config(bg=COLOR_SECONDARY)
-        toolbar._message_label.config(background=COLOR_SECONDARY)
+        # toolbar._message_label.config(background=COLOR_SECONDARY)
         toolbar.update()
         canvas._tkcanvas.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
 
@@ -183,6 +183,7 @@ class AlgosApp(object):
         self.original_alpha = None
         self.original_epsilon = None
         self.factors_set = OrderedSet([])
+        self.factors_dict = {}
 
         self.graphs = []
         self.recommendation_chart = []
@@ -332,13 +333,13 @@ class AlgosApp(object):
                                                    dev=compare_to_target(self.my_target, self.my_dict),
                                                    alpha=calculate_alpha(self.my_solar_spectrum, self.my_dict),
                                                    epsilon=calculate_epsilon(self.my_dict)))
-        self.delete_factor_button = tk.Button(self.container_frame2, text="Delete", padx=20, pady=8, width=2,
-                                              state="disabled", command=self.delete_factor_button_function)
+        self.reset_factor_button = tk.Button(self.container_frame2, text="Reset", padx=20, pady=8, width=2,
+                                             state="disabled", command=self.reset_factor_button_function)
         self.confirm_factor_button = tk.Button(self.container_frame2, text="Simulate", padx=40, pady=5, width=3,
                                                state="disabled", command=self.confirm_factor_button_function,
                                                font="Calibri 12 bold")
 
-        self.delete_factor_button.grid()
+        self.reset_factor_button.grid()
         self.confirm_factor_button.grid(row=0, column=1)
         self.original_graph_button.grid(row=0, column=2)
 
@@ -378,7 +379,7 @@ class AlgosApp(object):
         self.bottom_label1 = tk.Label(self.bottom_frame, text="© Rioglass Solar Systems Ltd.",
                                       font="Calibri 10 bold", anchor=tk.W, bg=COLOR_BOTTOM)
         self.bottom_label1.grid()
-        self.bottom_label2 = tk.Label(self.bottom_frame, text="version 1.0",
+        self.bottom_label2 = tk.Label(self.bottom_frame, text="version 1.0.1",
                                       font="Calibri 10 bold", bg=COLOR_BOTTOM)
         self.bottom_label2.grid(row=0, column=1)
         self.bottom_label3 = tk.Label(self.bottom_frame, text="Programmed by: Aviv Goldstein",
@@ -473,6 +474,8 @@ class AlgosApp(object):
         self.original_epsilon = calculate_epsilon(self.my_dict)
         self.factors_set.clear()
         self.factors_set = find_factors(self.factors_ws, self.factors_set)
+        for factor in self.factors_set:
+            self.factors_dict[factor] = 0
 
     def initialize_buttons(self):
         val = 0
@@ -484,27 +487,33 @@ class AlgosApp(object):
         for val, factor in enumerate(self.factors_set):
             no_text = 1
             text = ""
+            multiple = 10
             if factor[0] == "I":
-                text = "1"
+                text = "0.1"
             elif factor[0] == "V":
-                text = "0.5"
+                text = "0.1"
+                multiple = 5
             else:
                 no_text = 2
             self.buttons.append(tk.Button(
-                self.container_frame1, text="-%g" % (float(text)*2) * no_text, padx=10, width=2,
-                command=lambda c=val: self.factor_button_clicked(self.factors_set[c] + "--")))
+                self.container_frame1, text="-%g" % (float(text)*multiple) * no_text, padx=10, width=2,
+                command=lambda c=val, t=text, m=multiple: self.factor_button_clicked(
+                    self.factors_set[c] + "-%g" % (float(t)*m))))
             self.buttons[-1].grid(row=2 + val, column=0)
-            self.buttons.append(tk.Button(self.container_frame1, text="-"+text, padx=10, width=2,
-                                          command=lambda c=val: self.factor_button_clicked(self.factors_set[c] + "-")))
+            self.buttons.append(tk.Button(
+                self.container_frame1, text="-"+text, padx=10, width=2,
+                command=lambda c=val, t=text: self.factor_button_clicked(self.factors_set[c] + "-%g" % float(t))))
             self.buttons[-1].grid(row=2 + val, column=1)
             self.labels.append(tk.Label(self.container_frame1, text=factor, padx=25, font="Calibri 16"))
             self.labels[-1].grid(row=2 + val, column=2)
-            self.buttons.append(tk.Button(self.container_frame1, text="+"+text, padx=10, width=2,
-                                          command=lambda c=val: self.factor_button_clicked(self.factors_set[c] + "+")))
+            self.buttons.append(tk.Button(
+                self.container_frame1, text="+"+text, padx=10, width=2,
+                command=lambda c=val, t=text: self.factor_button_clicked(self.factors_set[c] + "+%g" % float(t))))
             self.buttons[-1].grid(row=2 + val, column=3)
             self.buttons.append(tk.Button(
-                self.container_frame1, text="+%g" % (float(text)*2) * no_text, padx=10, width=2,
-                command=lambda c=val: self.factor_button_clicked(self.factors_set[c] + "++")))
+                self.container_frame1, text="+%g" % (float(text)*multiple) * no_text, padx=10, width=2,
+                command=lambda c=val, t=text, m=multiple: self.factor_button_clicked(
+                    self.factors_set[c] + "+%g" % (float(t)*m))))
             self.buttons[-1].grid(row=2 + val, column=4)
 
     # ----------------------------------------------------------------
@@ -574,9 +583,10 @@ class AlgosApp(object):
                     font="Calibri 12", padx=2))
                 self.recommendation_chart[-1].grid(row=i, column=4)
                 self.recommendation_chart.append(tk.Button(
-                    self.best_results_table, text="Show", padx=2, command=lambda r=result: self.open_graph_window(
+                    self.best_results_table, text="Show", padx=2, command=lambda r=result, f=factors:
+                    self.open_graph_window(
                         simulate_final_spectrum(self.my_dict, r, self.factors_ws, self.factor_places),
-                        factors, r[1], r[2], r[3])))
+                        f, r[1], r[2], r[3])))
                 self.recommendation_chart[-1].grid(row=i, column=5)
 
     # ----------------------------------------------------------------
@@ -588,7 +598,8 @@ class AlgosApp(object):
     # ----------------------------------------------------------------
     # Handles the factor buttons click
     def factor_button_clicked(self, factor):
-        self.delete_factor_button.config(state="active")
+        """
+        self.reset_factor_button.config(state="active")
         self.confirm_factor_button.config(state="active")
         new_text = self.text_factors.get(1.0, tk.END)[:-1]
         temp = new_text.split(", ")
@@ -601,14 +612,66 @@ class AlgosApp(object):
                 button.config(state="disabled")
         self.text_factors.delete(1.0, tk.END)
         self.text_factors.insert(1.0, new_text)
+        """
+        sign = ""
+        sign_place = 0
+        for let in factor[::-1]:
+            if let == "+":
+                sign = "+"
+                break
+            elif let == "-":
+                sign = "-"
+                break
+            sign_place -= 1
+
+        num = factor[sign_place:]
+        actual_factor = factor[:sign_place-1]
+
+        if sign == "+":
+            self.factors_dict[actual_factor] = round(self.factors_dict[actual_factor] + float(num), 1)
+        elif sign == "-":
+            self.factors_dict[actual_factor] = round(self.factors_dict[actual_factor] - float(num), 1)
+        new_text = ""
+        for dict_factor in self.factors_dict:
+            if self.factors_dict[dict_factor] != 0:
+                suffix = ""
+                if dict_factor[0] == "I":
+                    suffix = "A"
+                elif dict_factor[0] == "V":
+                    suffix = "mm/s"
+
+                temp = " "
+                if self.factors_dict[dict_factor] > 0:
+                    temp = " +"
+                number = ('%f' % float(self.factors_dict[dict_factor])).rstrip('0').rstrip('.')
+                new_text += dict_factor + temp + number + suffix + ",  "
+
+        new_text = new_text[:-2]
+        self.text_factors.delete(1.0, tk.END)
+        self.text_factors.insert(1.0, new_text)
+
+        if self.text_factors == "":
+            self.reset_factor_button.config(state="disabled")
+            self.confirm_factor_button.config(state="disabled")
+        else:
+            self.reset_factor_button.config(state="active")
+            self.confirm_factor_button.config(state="active")
 
     # ----------------------------------------------------------------
-    # Handles the "delete" button click
-    def delete_factor_button_function(self):
+    # Handles the "reset" button click
+    def reset_factor_button_function(self):
+        for factor in self.factors_dict:
+            self.factors_dict[factor] = 0
+        self.text_factors.delete(1.0, tk.END)
+
+        self.reset_factor_button.config(state="disabled")
+        self.confirm_factor_button.config(state="disabled")
+
+        """
         new_text = self.text_factors.get(1.0, tk.END)
         temp = new_text.split(", ")
         if len(temp) == 1:
-            self.delete_factor_button.config(state="disabled")
+            self.reset_factor_button.config(state="disabled")
             self.confirm_factor_button.config(state="disabled")
         temp.pop()
         new_text = ""
@@ -622,10 +685,29 @@ class AlgosApp(object):
 
         for button in self.buttons:
             button.config(state="active")
+        """
 
     # ----------------------------------------------------------------
     # Handles the "confirm" button click
     def confirm_factor_button_function(self):
+        min_cell, max_cell = find_min_max_cell(self.factors_ws, 'A', str(400), 2000)
+        new_spectrum = self.my_dict
+        for factor, value in self.factors_dict.items():
+            if value != 0:
+                sign = " +"
+                if value < 0:
+                    sign = " -"
+                if factor[0] == "V":
+                    value *= 2
+                temp = column_index_from_string(self.factor_places[factor + sign])
+                new_spectrum = simulate_spectrum(new_spectrum, self.factors_ws, temp, min_cell, max_cell, abs(value))
+
+        dev = compare_to_target(self.my_target, new_spectrum)
+        alpha = calculate_alpha(self.my_solar_spectrum, new_spectrum)
+        epsilon = calculate_epsilon(new_spectrum)
+        self.open_graph_window(new_spectrum, self.text_factors.get(1.0, tk.END)[:-1], dev, alpha, epsilon)
+
+        """
         factors = self.text_factors.get(1.0, tk.END)
         factors_list = factors.split(", ")
         factors_list[-1] = factors_list[-1][:-1]  # to remove the \n
@@ -652,16 +734,19 @@ class AlgosApp(object):
                 ff += factor[:-1] + " -" + ", "
             for _ in range(i):
                 new_spectrum = simulate_spectrum(new_spectrum, self.factors_ws, temp1, min_cell, max_cell)
+        
         ff = factor_formatting(ff[:-2], True)
         dev = compare_to_target(self.my_target, new_spectrum)
         alpha = calculate_alpha(self.my_solar_spectrum, new_spectrum)
         epsilon = calculate_epsilon(new_spectrum)
         self.open_graph_window(new_spectrum, ff, dev, alpha, epsilon)
+        
         self.text_factors.delete('1.0', tk.END)
-        self.delete_factor_button.config(state="disabled")
+        self.reset_factor_button.config(state="disabled")
         self.confirm_factor_button.config(state="disabled")
         for button in self.buttons:
             button.config(state="active")
+        """
 
     # ----------------------------------------------------------------
     def optimize_target(self):
@@ -819,7 +904,7 @@ def calculate_epsilon(spectrum):
             if temp_ref > ref:
                 temp_ref = ref
                 lambda_min = wl
-    slope = (spectrum[1900] - spectrum[1700]) / (1900 - 1700) * 100
+    slope = round(spectrum[1900] - spectrum[1700], 10) / (1900 - 1700) * 100
     result = 0.002 * lambda_min - 154.3 * slope + 17.5
     return result
 
@@ -861,7 +946,7 @@ def factor_formatting(factors, is_spaced=False):
                 t += ('%f' % float(factors_dict[i]/2)).rstrip('0').rstrip('.') + "mm/s"
             else:
                 t += str(factors_dict[i])
-            formatted_text += i + ": " + t + ",  "
+            formatted_text += i + "" + t + " ,  "
             is_empty = False
     if is_empty:
         formatted_text = "no change"
@@ -875,13 +960,14 @@ def factor_formatting(factors, is_spaced=False):
 
 # Simulates the expected spectrum that will be achieved by using the function
 # in the given column on the data in the dict
-def simulate_spectrum(my_dict, factors_ws, column, min_cell, max_cell):
+def simulate_spectrum(my_dict, factors_ws, column, min_cell, max_cell, multiply=1):
     # defining variables
     temp_dict = {}
     # code
     for i in range(int(min_cell), int(max_cell)):
         temp = factors_ws.cell(row=i, column=column_index_from_string('A')).internal_value
-        temp_dict[temp] = my_dict[temp] + (factors_ws.cell(row=i, column=column).internal_value / 100.0)
+        temp_dict[temp] = round(
+            my_dict[temp] + ((factors_ws.cell(row=i, column=column).internal_value / 100.0) * multiply), 10)
     return temp_dict
 
 
@@ -929,8 +1015,6 @@ def repeating_loop_best_factors(min_factor, spectrum, factors_ws, min_cell, max_
                 best_results.append((text, dev, alpha, epsilon))
                 if evaluation_of_results == 0:
                     best_results = sorted(best_results, key=itemgetter(1), reverse=False)[:5]
-                else:
-                    print("hello!")
     return best_results
 
 
