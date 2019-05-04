@@ -36,7 +36,7 @@ plt.use("TkAgg")
 
 # Constant variables (even though python doesn't have these)
 MIN_FACTOR = 2
-MAX_FACTOR = 23
+MAX_FACTOR = 24
 MIN_WAVELENGTH = 400
 MAX_WAVELENGTH = 2000
 STEP_WAVELENGTH = 10
@@ -70,7 +70,7 @@ HELP_TEXT = "ALGOS is a recipe adviser tool. It was designed to help the process
             " “copy data” from the graph window" \
             "\n         (please note that the copied data is of R between 400-1990 nm, steps 10 nm)." \
             "\n\nEnjoy!"
-ABOUT_TEXT = "ALGOS version 1.0.1" \
+ABOUT_TEXT = "ALGOS version 1.0.3" \
              "\nProgrammed by: Aviv Goldstein" \
              "\nModelled by: Dr. Alona Goldstein" \
              "\n© Rioglass Solar Systems Ltd." \
@@ -122,8 +122,9 @@ class GraphFrame(tk.Toplevel):
         self.spectrum_text = ""
         for i in self.spectrum:
             self.spectrum_text += str(self.spectrum[i]) + "\n"
+
         button_copy_spectrum_to_clipboard = tk.Button(self.top_frame, text="copy data",
-                                                      command=pypcopy(self.spectrum_text))
+                                                      command=lambda: copy_to_clipboard(self.spectrum_text))
         button_copy_spectrum_to_clipboard.pack(side=tk.RIGHT, padx=(0, 40))
 
         canvas_frame = tk.Frame(self)
@@ -317,6 +318,7 @@ class AlgosApp(object):
         self.factors_frame_label = tk.Label(self.factors_frame, text="Manual Simulation", font="Calibri 16")
         self.factors_frame_label.grid()
         self.text_factors = tk.Text(self.factors_frame, height=3, width=30, bg="#e6ffff", font="Calibri 16")  # #00ffff
+        self.text_factors.configure(state="disabled")
         self.text_factors.grid(row=1)
 
         self.container_frame1 = tk.Frame(self.factors_frame)
@@ -379,7 +381,7 @@ class AlgosApp(object):
         self.bottom_label1 = tk.Label(self.bottom_frame, text="© Rioglass Solar Systems Ltd.",
                                       font="Calibri 10 bold", anchor=tk.W, bg=COLOR_BOTTOM)
         self.bottom_label1.grid()
-        self.bottom_label2 = tk.Label(self.bottom_frame, text="version 1.0.1",
+        self.bottom_label2 = tk.Label(self.bottom_frame, text="version 1.0.3",
                                       font="Calibri 10 bold", bg=COLOR_BOTTOM)
         self.bottom_label2.grid(row=0, column=1)
         self.bottom_label3 = tk.Label(self.bottom_frame, text="Programmed by: Aviv Goldstein",
@@ -457,6 +459,16 @@ class AlgosApp(object):
     # ----------------------------------------------------------------
     # opens the requested excel file and saves all of the required sheets into class variables
     def open_file_worksheets(self):
+        # reset tkinter
+        if self.recommendation_frame_container is not None:
+            self.recommendation_frame_container.destroy()
+        self.recommendation_frame_container = tk.Frame(self.recommendation_frame)
+        self.recommendation_frame_container.grid(row=4, pady=15, sticky="nsw")
+        self.table_label.grid_remove()
+        self.number_of_loops.set(3)
+        self.reset_factor_button_function()
+
+        # save new data
         self.my_wb = load_workbook(self.label_file_path.get(), data_only=True)
         self.data_ws = self.my_wb["Data"]
         self.factors_ws = self.my_wb["Factors"]
@@ -464,6 +476,7 @@ class AlgosApp(object):
         self.results_ws = self.my_wb["Results"]
         self.solar_spectrum_ws = self.my_wb["SolarSpectrum"]
 
+        # take initialization actions
         self.my_dict = data_reduce(self.data_ws)
         self.my_target = data_reduce(self.target_ws)
         self.my_solar_spectrum = data_reduce(self.solar_spectrum_ws)
@@ -488,11 +501,13 @@ class AlgosApp(object):
             no_text = 1
             text = ""
             multiple = 10
+            ifv = 1
             if factor[0] == "I":
                 text = "0.1"
             elif factor[0] == "V":
                 text = "0.1"
                 multiple = 5
+                ifv = 2
             else:
                 no_text = 2
             self.buttons.append(tk.Button(
@@ -647,8 +662,10 @@ class AlgosApp(object):
                 new_text += dict_factor + temp + number + suffix + ",  "
 
         new_text = new_text[:-2]
+        self.text_factors.configure(state="normal")
         self.text_factors.delete(1.0, tk.END)
         self.text_factors.insert(1.0, new_text)
+        self.text_factors.configure(state="disabled")
 
         if self.text_factors == "":
             self.reset_factor_button.config(state="disabled")
@@ -662,7 +679,9 @@ class AlgosApp(object):
     def reset_factor_button_function(self):
         for factor in self.factors_dict:
             self.factors_dict[factor] = 0
+        self.text_factors.configure(state="normal")
         self.text_factors.delete(1.0, tk.END)
+        self.text_factors.configure(state="disabled")
 
         self.reset_factor_button.config(state="disabled")
         self.confirm_factor_button.config(state="disabled")
@@ -777,6 +796,11 @@ class AlgosApp(object):
             pickle.dump(self.label_file_path.get(), fi)
 
 
+# copy data to clipboard
+def copy_to_clipboard(data):
+    pypcopy(data)
+
+
 # ~~~~~~~~~~~~~~~~~~~~ Functions ~~~~~~~~~~~~~~~~~~~~~~
 
 # \/\/\/ Helping Functions: \/\/\/
@@ -841,10 +865,16 @@ def map_factor_places(factors_ws):
         if str(cell.internal_value) == "lambda [nm]":
             temp_row = cell.row
             break
+    keep_looping = True
     # code
-    for i in range(MIN_FACTOR, MAX_FACTOR):
-        temp_list[factors_ws.cell(row=temp_row, column=i).internal_value] = \
-            factors_ws.cell(row=temp_row, column=i).column
+
+    for cell in factors_ws[temp_row]:
+        if str(cell.internal_value) != "lambda [nm]" and str(cell.internal_value) != "no change":
+            if cell.internal_value is None:
+                break
+            else:
+                temp_list[cell.internal_value] = cell.column
+
     return temp_list
 
 
@@ -953,9 +983,6 @@ def factor_formatting(factors, is_spaced=False):
     return formatted_text
 
 
-# find spectrum from factor names
-# def spectrum_from_factors(factors):
-
 # \/\/\/ Main Functions: \/\/\/
 
 # Simulates the expected spectrum that will be achieved by using the function
@@ -1011,10 +1038,17 @@ def repeating_loop_best_factors(min_factor, spectrum, factors_ws, min_cell, max_
                 # checks deviation score and checks if it is in the top results
                 dev = compare_to_target(my_target, new_spectrum)
                 alpha = calculate_alpha(solar_spectrum, new_spectrum)
-                epsilon = calculate_epsilon(spectrum)
+                epsilon = calculate_epsilon(new_spectrum)
                 best_results.append((text, dev, alpha, epsilon))
                 if evaluation_of_results == 0:
                     best_results = sorted(best_results, key=itemgetter(1), reverse=False)[:5]
+    # TODO: organize the code (again). currently the code calculates some things more than once or inefficiently
+    # TODO: calculate alpha and epsilon only for the best results
+    """
+    for i in best_results:
+        i[2] = calculate_alpha(solar_spectrum, new_spectrum)
+        i[3] = calculate_epsilon(spectrum)
+    """
     return best_results
 
 
